@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asiri Studio · Class Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+/* ── Design tokens ─────────────────────────────────────────── */
+:root {
+  --kiln:        #2c1d12;
+  --kiln-mid:    #3e2a1a;
+  --kiln-soft:   #5a3e2b;
+  --clay:        #bf7a4e;
+  --clay-light:  #d4956e;
+  --clay-pale:   #f0dcc8;
+  --sand:        #f6ede0;
+  --sand-dark:   #e8ddd0;
+  --sand-mid:    #d8cfc4;
+  --cream:       #fdf8f3;
+  --sage:        #617f64;
+  --sage-light:  #8aaa8c;
+  --sage-pale:   #d8eada;
+  --warm-brown:  #7a5c42;
+  --warm-grey:   #9a8a78;
+  --text-dark:   #291e12;
+  --text-mid:    #6b5a46;
+  --text-light:  #9a8a78;
+
+  --ok:          #3f6642;  --ok-bg:       #e5f0e6;  --ok-border:   #b8d4ba;
+  --low:         #9e7520;  --low-bg:      #f7edda;  --low-border:  #e0cc98;
+  --empty:       #963232;  --empty-bg:    #f7e8e8;  --empty-border:#e0b4b4;
+  --owed:        #74478a;  --owed-bg:     #f2e8f8;  --owed-border: #d0b0e4;
+
+  --radius:    14px;
+  --radius-sm: 8px;
+  --shadow:    0 2px 16px rgba(44,29,18,.08);
+  --shadow-md: 0 4px 24px rgba(44,29,18,.12);
+  --shadow-lg: 0 8px 48px rgba(44,29,18,.18);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--sand);
+  color: var(--text-dark);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Header ────────────────────────────────────────────────── */
+header { background: var(--kiln); position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 24px rgba(0,0,0,.35); }
+.header-inner { max-width: 980px; margin: 0 auto; padding: 13px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.header-wordmark { display: flex; align-items: baseline; gap: 10px; }
+.header-title { font-family: 'Playfair Display', serif; color: var(--clay-light); font-size: 1.3rem; font-weight: 500; letter-spacing: .02em; }
+.header-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--kiln-soft); flex-shrink: 0; }
+.header-sub { font-size: .72rem; color: var(--warm-grey); letter-spacing: .14em; text-transform: uppercase; }
+
+.conn-status { display: flex; align-items: center; gap: 7px; font-size: .73rem; color: var(--warm-grey); letter-spacing: .04em; flex-shrink: 0; }
+.conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warm-grey); }
+.conn-status.connecting .conn-dot { animation: blink 1.4s ease-in-out infinite; }
+.conn-status.connected .conn-dot  { background: #7ac07a; }
+.conn-status.error .conn-dot      { background: #c47070; }
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:.3} }
+
+/* ── Tab bar ───────────────────────────────────────────────── */
+.tabs-bar { background: var(--kiln-mid); position: sticky; top: 52px; z-index: 99; border-bottom: 1px solid rgba(255,255,255,.05); }
+.tabs-inner { max-width: 980px; margin: 0 auto; display: flex; padding: 0 16px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; align-items: stretch; }
+.tabs-inner::-webkit-scrollbar { display: none; }
+.tab-btn { padding: 12px 18px; border: none; background: none; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: .78rem; font-weight: 500; color: rgba(212,149,110,.45); letter-spacing: .1em; text-transform: uppercase; border-bottom: 2px solid transparent; transition: color .18s, border-color .18s; white-space: nowrap; flex-shrink: 0; }
+.tab-btn:hover  { color: var(--clay-light); }
+.tab-btn.active { color: var(--clay-light); border-bottom-color: var(--clay); }
+.tab-divider { width: 1px; background: rgba(255,255,255,.08); margin: 10px 4px; flex-shrink: 0; }
+.tab-add-group { padding: 7px 13px; border: 1px solid rgba(212,149,110,.22); border-radius: var(--radius-sm); background: none; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: .72rem; font-weight: 500; color: rgba(212,149,110,.4); letter-spacing: .07em; transition: color .18s, border-color .18s, background .18s; white-space: nowrap; flex-shrink: 0; align-self: center; margin-left: 6px; }
+.tab-add-group:hover { color: var(--clay-light); border-color: rgba(212,149,110,.5); background: rgba(212,149,110,.07); }
+
+/* ── Main ──────────────────────────────────────────────────── */
+main { max-width: 980px; margin: 0 auto; padding: 28px 16px 72px; }
+
+.section-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 0; gap: 12px; flex-wrap: wrap; }
+.section-title-row { display: flex; align-items: center; gap: 10px; }
+.section-title { font-family: 'Playfair Display', serif; font-size: 1.55rem; font-weight: 500; font-style: italic; color: var(--kiln); line-height: 1.2; }
+.section-meta { font-size: .73rem; color: var(--text-light); letter-spacing: .07em; text-transform: uppercase; margin-top: 3px; }
+.section-actions { display: flex; align-items: center; gap: 8px; }
+
+.btn-edit-group { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--sand-dark); background: var(--cream); cursor: pointer; font-size: .72rem; color: var(--text-light); transition: all .15s; flex-shrink: 0; }
+.btn-edit-group:hover { border-color: var(--clay); color: var(--clay); background: var(--clay-pale); }
+
+.btn-primary { display: flex; align-items: center; gap: 5px; padding: 9px 18px; background: var(--kiln); color: var(--clay-light); border: none; border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: .78rem; font-weight: 500; letter-spacing: .05em; cursor: pointer; transition: background .18s; white-space: nowrap; }
+.btn-primary:hover { background: var(--kiln-soft); }
+
+/* ── Group notes panel ─────────────────────────────────────── */
+.btn-group-notes {
+  display: flex; align-items: center; gap: 5px;
+  padding: 7px 12px;
+  border: 1.5px solid var(--sand-dark);
+  border-radius: var(--radius-sm);
+  background: var(--cream);
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: .73rem;
+  font-weight: 500;
+  color: var(--text-mid);
+  letter-spacing: .03em;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.btn-group-notes:hover { border-color: var(--clay); color: var(--warm-brown); background: var(--clay-pale); }
+.btn-group-notes.has-notes { border-color: var(--clay); color: var(--warm-brown); background: var(--clay-pale); }
+.btn-group-notes .notes-chevron { font-size: .65rem; transition: transform .2s; display: inline-block; }
+.btn-group-notes.open .notes-chevron { transform: rotate(180deg); }
+
+.group-notes-panel {
+  margin-top: 16px;
+  background: #fffdf8;
+  border: 1.5px solid var(--clay-pale);
+  border-radius: var(--radius);
+  padding: 16px 18px 14px;
+  box-shadow: 0 1px 8px rgba(191,122,78,.08);
+  animation: fadein .15s ease;
+}
+.group-notes-label {
+  font-size: .67rem;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--clay);
+  margin-bottom: 10px;
+}
+.group-notes-ta {
+  width: 100%;
+  min-height: 90px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--clay-pale);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: .85rem;
+  color: var(--text-dark);
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: border-color .15s;
+}
+.group-notes-ta:focus { border-color: var(--clay); }
+.group-notes-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  gap: 10px;
+}
+.group-notes-ts { font-size: .68rem; color: var(--text-light); font-style: italic; }
+.group-notes-save {
+  padding: 6px 14px;
+  background: var(--kiln);
+  color: var(--clay-light);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: 'DM Sans', sans-serif;
+  font-size: .73rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s;
+}
+.group-notes-save:hover { background: var(--clay); color: #fff; }
+.group-notes-saved { font-size: .72rem; color: var(--sage); font-style: italic; opacity: 0; transition: opacity .4s; }
+.group-notes-saved.show { opacity: 1; }
+
+/* ── Cards grid ────────────────────────────────────────────── */
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; margin-top: 22px; }
+
+/* ── Student card ──────────────────────────────────────────── */
+.student-card { background: var(--cream); border: 1.5px solid var(--sand-dark); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; transition: transform .15s, box-shadow .15s; }
+.student-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.student-card.s-low   { border-color: var(--low-border);   background: #fef9f0; }
+.student-card.s-empty { border-color: var(--empty-border); background: #fef5f5; }
+.student-card.s-owed  { border-color: var(--owed-border);  background: #faf4fe; }
+
+.card-top { display: flex; align-items: center; gap: 11px; padding: 15px 16px 12px; border-bottom: 1px solid var(--sand-dark); }
+.avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--clay-pale); display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-size: .82rem; font-weight: 600; color: var(--warm-brown); flex-shrink: 0; letter-spacing: .03em; }
+.student-name { font-family: 'Playfair Display', serif; font-size: .98rem; font-weight: 500; color: var(--text-dark); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.badge { font-size: .65rem; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; padding: 3px 9px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+.badge-ok    { background: var(--ok-bg);    color: var(--ok);    }
+.badge-low   { background: var(--low-bg);   color: var(--low);   }
+.badge-empty { background: var(--empty-bg); color: var(--empty); }
+.badge-owed  { background: var(--owed-bg);  color: var(--owed);  }
+
+.dots-row { display: flex; gap: 7px; padding: 14px 16px 10px; align-items: center; flex-wrap: wrap; }
+.d { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--clay); flex-shrink: 0; }
+.d.used { background: var(--clay); }
+.d.free { background: transparent; }
+.d.owed { background: var(--owed); border-color: var(--owed); display: flex; align-items: center; justify-content: center; }
+.d.owed::after { content: '!'; font-size: 7px; color: #fff; font-weight: 800; line-height: 1; }
+
+.pack-info { padding: 1px 16px 13px; font-size: .75rem; color: var(--text-light); }
+
+.card-actions { display: flex; gap: 6px; padding: 2px 16px 14px; flex-wrap: wrap; align-items: center; }
+.btn { padding: 7px 12px; border-radius: var(--radius-sm); border: none; font-family: 'DM Sans', sans-serif; font-size: .73rem; font-weight: 500; cursor: pointer; transition: background .15s, color .15s; letter-spacing: .02em; white-space: nowrap; }
+.btn-mark { background: var(--kiln); color: var(--clay-light); }
+.btn-mark:hover { background: var(--clay); color: #fff; }
+.btn-pay  { background: var(--sage-pale); color: var(--sage); }
+.btn-pay:hover  { background: var(--sage); color: #fff; }
+.btn-bal  { background: var(--sand-dark); color: var(--text-mid); }
+.btn-bal:hover  { background: var(--warm-grey); color: #fff; }
+.btn-del  { background: none; color: var(--empty); border: 1px solid var(--empty-border); margin-left: auto; }
+.btn-del:hover  { background: var(--empty-bg); }
+
+/* Activity section */
+.activity { border-top: 1px solid var(--sand-dark); padding: 12px 16px 14px; }
+.activity-heading { font-size: .66rem; font-weight: 600; letter-spacing: .11em; text-transform: uppercase; color: var(--text-light); margin-bottom: 9px; }
+.entry { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--sand); font-size: .76rem; }
+.entry:last-child { border-bottom: none; }
+.entry-body { flex: 1; min-width: 0; }
+.entry-label { color: var(--text-dark); font-weight: 500; }
+.entry-date  { color: var(--text-light); font-size: .7rem; margin-top: 1px; }
+.entry-btns  { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+.ebtn { width: 22px; height: 22px; border-radius: 50%; border: none; cursor: pointer; font-size: .7rem; display: flex; align-items: center; justify-content: center; transition: all .14s; line-height: 1; flex-shrink: 0; }
+.ebtn-rm  { background: var(--empty-bg); color: var(--empty); }
+.ebtn-rm:hover  { background: var(--empty); color: #fff; }
+.ebtn-edt { background: var(--sand-dark); color: var(--text-mid); }
+.ebtn-edt:hover { background: var(--warm-grey); color: #fff; }
+.no-activity { color: var(--text-light); font-size: .75rem; font-style: italic; }
+
+/* ── Card expand toggle ────────────────────────────────────── */
+.card-expand-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 16px;
+  border: none;
+  border-top: 1px solid var(--sand-dark);
+  background: var(--sand);
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: .70rem;
+  font-weight: 500;
+  color: var(--text-light);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  transition: background .15s, color .15s;
+}
+.card-expand-toggle:hover { background: var(--clay-pale); color: var(--warm-brown); }
+.student-card.s-low   .card-expand-toggle { background: #f7edda; }
+.student-card.s-empty .card-expand-toggle { background: #f2e0e0; }
+.student-card.s-owed  .card-expand-toggle { background: #ede0f5; }
+.card-expand-toggle .chev { font-size: .65rem; transition: transform .22s; display: inline-block; }
+.student-card.expanded .card-expand-toggle .chev { transform: rotate(180deg); }
+/* dot indicator: shown when notes exist and card is collapsed */
+.card-expand-toggle .note-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--clay);
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.card-expand-toggle .note-dot.visible { opacity: 1; }
+
+/* ── Expanded card sections ────────────────────────────────── */
+.card-expanded-body { border-top: 1px solid var(--sand-dark); }
+
+/* Full activity (shown only when expanded) */
+.activity-full { padding: 12px 16px 14px; }
+
+/* Student notes section */
+.student-notes-section {
+  border-top: 1px solid var(--sand-dark);
+  padding: 14px 16px 16px;
+  background: #fffdf8;
+}
+.notes-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.notes-section-title { font-size: .66rem; font-weight: 600; letter-spacing: .11em; text-transform: uppercase; color: var(--warm-brown); }
+
+/* Individual note items */
+.note-item {
+  background: var(--cream);
+  border: 1.5px solid var(--clay-pale);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: .80rem;
+  color: var(--text-dark);
+  line-height: 1.55;
+  position: relative;
+}
+.note-item:last-of-type { margin-bottom: 0; }
+.note-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+.note-date { font-size: .67rem; color: var(--text-light); font-style: italic; flex-shrink: 0; }
+.note-btns { display: flex; gap: 3px; flex-shrink: 0; }
+.note-text { color: var(--text-dark); white-space: pre-wrap; word-break: break-word; }
+.note-edit-area { width: 100%; min-height: 70px; padding: 7px 9px; border: 1.5px solid var(--clay); border-radius: var(--radius-sm); background: #fff; font-family: 'DM Sans', sans-serif; font-size: .82rem; color: var(--text-dark); line-height: 1.55; resize: vertical; outline: none; margin-bottom: 6px; }
+.note-edit-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.nbtn { padding: 5px 11px; border-radius: var(--radius-sm); border: none; font-family: 'DM Sans', sans-serif; font-size: .72rem; font-weight: 500; cursor: pointer; transition: all .14s; }
+.nbtn-save   { background: var(--kiln); color: var(--clay-light); }
+.nbtn-save:hover { background: var(--clay); color: #fff; }
+.nbtn-cancel2 { background: var(--sand-dark); color: var(--text-mid); }
+.nbtn-cancel2:hover { background: var(--warm-grey); color: #fff; }
+
+/* Add note area */
+.add-note-area { margin-top: 10px; }
+.add-note-ta { width: 100%; min-height: 70px; padding: 9px 11px; border: 1.5px solid var(--sand-dark); border-radius: var(--radius-sm); background: #fff; font-family: 'DM Sans', sans-serif; font-size: .82rem; color: var(--text-dark); line-height: 1.55; resize: vertical; outline: none; transition: border-color .15s; }
+.add-note-ta:focus { border-color: var(--clay); }
+.add-note-ta::placeholder { color: var(--text-light); }
+.add-note-btn { margin-top: 7px; width: 100%; padding: 8px; background: var(--clay-pale); color: var(--warm-brown); border: 1.5px solid var(--clay-pale); border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: .73rem; font-weight: 500; cursor: pointer; transition: all .15s; letter-spacing: .03em; }
+.add-note-btn:hover { background: var(--clay); color: #fff; border-color: var(--clay); }
+.no-notes { color: var(--text-light); font-size: .75rem; font-style: italic; margin-bottom: 10px; }
+
+/* ── Empty state ───────────────────────────────────────────── */
+.empty-state { grid-column: 1 / -1; text-align: center; padding: 56px 20px; color: var(--text-light); }
+.empty-icon  { font-size: 2.8rem; margin-bottom: 10px; opacity: .4; }
+.empty-msg   { font-size: .9rem; }
+
+/* ── Overview ──────────────────────────────────────────────── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 14px; margin-bottom: 30px; }
+.stat-card { background: var(--cream); border: 1.5px solid var(--sand-dark); border-radius: var(--radius); padding: 18px 16px 16px; box-shadow: var(--shadow); }
+.stat-val { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 600; color: var(--kiln); line-height: 1; }
+.stat-lbl { font-size: .7rem; color: var(--text-light); letter-spacing: .07em; text-transform: uppercase; margin-top: 5px; }
+.stat-card.c-rev  .stat-val { color: var(--sage);  }
+.stat-card.c-warn .stat-val { color: var(--low);   }
+.stat-card.c-err  .stat-val { color: var(--empty); }
+.stat-card.c-owed .stat-val { color: var(--owed);  }
+
+.mini-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; }
+.mini-group { background: var(--cream); border: 1.5px solid var(--sand-dark); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
+.mini-group-title { font-family: 'Playfair Display', serif; font-size: .98rem; font-style: italic; color: var(--kiln); margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--sand-dark); }
+.mini-student { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--sand); font-size: .8rem; gap: 8px; }
+.mini-student:last-child { border-bottom: none; }
+.mini-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Alerts ────────────────────────────────────────────────── */
+.alerts-list { display: flex; flex-direction: column; gap: 10px; }
+.alert-row { background: var(--cream); border: 1.5px solid var(--sand-dark); border-radius: var(--radius-sm); padding: 13px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: var(--shadow); }
+.alert-row.a-owed  { border-color: var(--owed-border);  background: #faf4fe; }
+.alert-row.a-empty { border-color: var(--empty-border); background: #fef5f5; }
+.alert-row.a-low   { border-color: var(--low-border);   background: #fef9f0; }
+.alert-info-col { display: flex; flex-direction: column; gap: 2px; }
+.alert-name { font-weight: 500; font-size: .88rem; }
+.alert-day  { font-size: .73rem; color: var(--text-light); }
+
+/* ── Modals ────────────────────────────────────────────────── */
+.backdrop { position: fixed; inset: 0; background: rgba(44,29,18,.56); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadein .14s ease; }
+@keyframes fadein { from { opacity: 0; } }
+.modal { background: var(--cream); border-radius: var(--radius); padding: 28px 26px; width: 100%; max-width: 400px; box-shadow: var(--shadow-lg); animation: slideup .18s ease; }
+@keyframes slideup { from { transform: translateY(18px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.modal-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 500; color: var(--kiln); margin-bottom: 8px; }
+.modal-body  { font-size: .83rem; color: var(--text-mid); line-height: 1.55; margin-bottom: 18px; }
+.modal-note  { background: var(--owed-bg); border: 1px solid var(--owed-border); border-radius: var(--radius-sm); padding: 10px 13px; font-size: .78rem; color: var(--owed); margin-bottom: 14px; line-height: 1.5; }
+.modal-warn  { background: var(--empty-bg); border: 1px solid var(--empty-border); border-radius: var(--radius-sm); padding: 10px 13px; font-size: .78rem; color: var(--empty); margin-top: 14px; line-height: 1.5; }
+
+.field { margin-bottom: 16px; }
+.field:last-of-type { margin-bottom: 0; }
+.field-label { display: block; font-size: .7rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-mid); margin-bottom: 6px; }
+.field-input, .field-select { width: 100%; padding: 10px 12px; border: 1.5px solid var(--sand-dark); border-radius: var(--radius-sm); background: #fff; font-family: 'DM Sans', sans-serif; font-size: .88rem; color: var(--text-dark); outline: none; transition: border-color .15s; }
+.field-input:focus, .field-select:focus { border-color: var(--clay); }
+
+.radio-row { display: flex; gap: 8px; }
+.radio-opt { display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; font-size: .82rem; color: var(--text-dark); padding: 8px 14px; border: 1.5px solid var(--sand-dark); border-radius: var(--radius-sm); transition: all .14s; flex: 1; user-select: none; }
+.radio-opt:has(input:checked) { border-color: var(--clay); background: var(--clay-pale); }
+.radio-opt input { display: none; }
+
+.modal-actions { display: flex; gap: 10px; margin-top: 22px; justify-content: flex-end; }
+.modal-actions-split { display: flex; gap: 10px; margin-top: 22px; justify-content: space-between; align-items: center; }
+.mbtn { padding: 10px 18px; border-radius: var(--radius-sm); border: none; font-family: 'DM Sans', sans-serif; font-size: .83rem; cursor: pointer; transition: all .15s; font-weight: 500; }
+.mbtn-cancel  { background: var(--sand-dark); color: var(--text-mid); }
+.mbtn-cancel:hover  { background: var(--warm-grey); color: #fff; }
+.mbtn-confirm { background: var(--kiln); color: var(--clay-light); }
+.mbtn-confirm:hover { background: var(--clay); color: #fff; }
+.mbtn-danger  { background: var(--empty-bg); color: var(--empty); border: 1px solid var(--empty-border); }
+.mbtn-danger:hover  { background: var(--empty); color: #fff; }
+
+@media (max-width: 620px) {
+  .cards-grid  { grid-template-columns: 1fr; }
+  .stats-grid  { grid-template-columns: 1fr 1fr; }
+  .mini-groups { grid-template-columns: 1fr; }
+  .card-actions { flex-wrap: wrap; }
+  main { padding: 20px 12px 60px; }
+  .header-sub { display: none; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-wordmark">
+      <span class="header-title">Asiri Studio</span>
+      <span class="header-dot"></span>
+      <span class="header-sub">Class Tracker</span>
+    </div>
+    <div class="conn-status connecting" id="connStatus">
+      <div class="conn-dot"></div>
+      <span id="connText">Connecting…</span>
+    </div>
+  </div>
+</header>
+
+<div class="tabs-bar">
+  <div class="tabs-inner" id="tabsInner"></div>
+</div>
+
+<main id="app">
+  <div style="text-align:center;padding:80px 20px;color:var(--text-light)">
+    <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic">Loading…</div>
+  </div>
+</main>
+
+<div id="portal"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   FIREBASE CONFIG
+   ═══════════════════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey:            "AIzaSyAs7ChOY7GdCsRhWkdZoDLID-cbof9q15Y",
+  authDomain:        "asiri-class-tracker.firebaseapp.com",
+  projectId:         "asiri-class-tracker",
+  storageBucket:     "asiri-class-tracker.firebasestorage.app",
+  messagingSenderId: "858159597873",
+  appId:             "1:858159597873:web:b34110085b2f41e60a0810"
+};
+firebase.initializeApp(firebaseConfig);
+const db  = firebase.firestore();
+const REF = db.collection('pottery').doc('tracker');
+
+/* ═══════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════ */
+const PACK_SIZE  = 5;
+const PACK_PRICE = 350;
+
+const DEFAULT_GROUPS = [
+  { id: 'monday',  name: 'Monday Evening'  },
+  { id: 'tuesday', name: 'Tuesday Evening' },
+];
+
+let students         = [];
+let groups           = [];
+let activeTab        = null;
+const expandedCards  = new Set(); // student IDs whose cards are expanded
+const openGroupNotes = new Set(); // group IDs whose notes panel is open
+
+/* ═══════════════════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════════════════ */
+const uid      = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const todayStr = () => new Date().toISOString().slice(0,10);
+
+function fmtDate(s) {
+  if (!s) return '';
+  return new Date(s+'T12:00:00').toLocaleDateString('en-AU', {day:'numeric',month:'short',year:'numeric'});
+}
+function fmtDatetime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleDateString('en-AU', {day:'numeric',month:'short',year:'numeric'});
+}
+function initials(name) {
+  return name.trim().split(/\s+/).map(w=>w[0]||'').join('').toUpperCase().slice(0,2);
+}
+function getStatus(n) {
+  if (n < 0)   return 'owed';
+  if (n === 0) return 'empty';
+  if (n === 1) return 'low';
+  return 'ok';
+}
+function badgeHTML(n) {
+  const s = getStatus(n);
+  const labels = {ok:`${n} left`,low:'Last class',empty:'Needs payment',owed:`Owes ${Math.abs(n)} class${Math.abs(n)!==1?'es':''}`};
+  return `<span class="badge badge-${s}">${labels[s]}</span>`;
+}
+function dotsHTML(n) {
+  let h = '';
+  if (n < 0) {
+    for (let i=0;i<PACK_SIZE;i++) h+=`<div class="d used"></div>`;
+    for (let i=0;i<Math.abs(n);i++) h+=`<div class="d owed"></div>`;
+  } else {
+    const used = PACK_SIZE - n;
+    for (let i=0;i<Math.min(used,PACK_SIZE);i++) h+=`<div class="d used"></div>`;
+    for (let i=0;i<Math.min(n,PACK_SIZE);i++)    h+=`<div class="d free"></div>`;
+  }
+  return h;
+}
+function packInfoLine(st) {
+  if (st.classesLeft < 0) {
+    const ow = Math.abs(st.classesLeft);
+    return `Owes ${ow} unpaid class${ow!==1?'es':''} · Total packs paid: ${st.totalPacksPaid}`;
+  }
+  return `${Math.max(0,PACK_SIZE-st.classesLeft)} used / ${PACK_SIZE} classes · Total packs paid: ${st.totalPacksPaid}`;
+}
+function escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function groupName(id) {
+  return (groups.find(g=>g.id===id)||{}).name || id;
+}
+
+/* Activity log HTML — limit controls how many to show */
+function activityHTML(st, limit) {
+  let entries = [...(st.history||[])].reverse();
+  if (limit) entries = entries.slice(0, limit);
+  if (!entries.length) return `<div class="no-activity">No activity yet</div>`;
+  return entries.map(e => {
+    const label = e.type==='class' ? 'Class attended'
+                : e.type==='payment' ? `Payment — $${PACK_PRICE}`
+                : e.type==='correction' ? `Balance corrected to ${e.newBalance}`
+                : 'Unknown entry';
+    const btns = e.type==='class'
+      ? `<button class="ebtn ebtn-rm" onclick="removeEntry('${st.id}','${e.id}','class')">✕</button>`
+      : e.type==='payment'
+      ? `<button class="ebtn ebtn-edt" onclick="editPaymentDate('${st.id}','${e.id}')">✎</button><button class="ebtn ebtn-rm" onclick="removeEntry('${st.id}','${e.id}','payment')">✕</button>`
+      : '';
+    return `<div class="entry"><div class="entry-body"><div class="entry-label">${label}</div><div class="entry-date">${fmtDate(e.date)}</div></div><div class="entry-btns">${btns}</div></div>`;
+  }).join('');
+}
+
+/* Notes HTML for a student — shown in expanded view */
+function studentNotesHTML(st) {
+  const notes = [...(st.notes||[])].reverse(); // newest first
+  let notesMarkup = '';
+  if (!notes.length) {
+    notesMarkup = `<div class="no-notes">No notes yet — add your first below.</div>`;
+  } else {
+    notesMarkup = notes.map(n => `
+      <div class="note-item" id="note-${n.id}">
+        <div class="note-header">
+          <span class="note-date">${fmtDatetime(n.date)}</span>
+          <div class="note-btns">
+            <button class="ebtn ebtn-edt" title="Edit note" onclick="startEditNote('${st.id}','${n.id}')">✎</button>
+            <button class="ebtn ebtn-rm"  title="Delete note" onclick="deleteNote('${st.id}','${n.id}')">✕</button>
+          </div>
+        </div>
+        <div class="note-text" id="note-text-${n.id}">${escHtml(n.text)}</div>
+      </div>`).join('');
+  }
+
+  return `
+    <div class="student-notes-section" id="notes-section-${st.id}">
+      <div class="notes-section-heading">
+        <span class="notes-section-title">✦ Notes</span>
+      </div>
+      ${notesMarkup}
+      <div class="add-note-area">
+        <textarea class="add-note-ta" id="new-note-ta-${st.id}" placeholder="Add a note about this student's progress, projects, preferences…" rows="3"></textarea>
+        <button class="add-note-btn" onclick="addNote('${st.id}')">Add note</button>
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER
+   ═══════════════════════════════════════════════════════════ */
+function studentCard(st) {
+  const s        = getStatus(st.classesLeft);
+  const isExp    = expandedCards.has(st.id);
+  const hasNotes = (st.notes||[]).length > 0;
+  const totalAct = (st.history||[]).length;
+
+  // Collapsed: show last 5 activity
+  const collapsedActivity = `
+    <div class="activity">
+      <div class="activity-heading">Recent activity</div>
+      ${activityHTML(st, 5)}
+    </div>`;
+
+  // Expanded: show all activity + notes
+  const expandedBody = isExp ? `
+    <div class="card-expanded-body">
+      <div class="activity-full">
+        <div class="activity-heading">Full activity log${totalAct > 5 ? ` (${totalAct} entries)` : ''}</div>
+        ${activityHTML(st, null)}
+      </div>
+      ${studentNotesHTML(st)}
+    </div>` : '';
+
+  const toggleLabel = isExp
+    ? 'Collapse'
+    : `Notes & full history${hasNotes ? ` · ${(st.notes||[]).length} note${(st.notes||[]).length!==1?'s':''}` : ''}`;
+
+  return `
+  <div class="student-card s-${s}${isExp?' expanded':''}" id="card-${st.id}">
+    <div class="card-top">
+      <div class="avatar">${initials(st.name)}</div>
+      <div class="student-name">${escHtml(st.name)}</div>
+      ${badgeHTML(st.classesLeft)}
+    </div>
+    <div class="dots-row">${dotsHTML(st.classesLeft)}</div>
+    <div class="pack-info">${packInfoLine(st)}</div>
+    <div class="card-actions">
+      <button class="btn btn-mark" onclick="markClass('${st.id}')">Mark class</button>
+      <button class="btn btn-pay"  onclick="addPayment('${st.id}')">+ Payment</button>
+      <button class="btn btn-bal"  onclick="editBalance('${st.id}')">Edit balance</button>
+      <button class="btn btn-del"  onclick="removeStudent('${st.id}')">Remove</button>
+    </div>
+    ${collapsedActivity}
+    ${expandedBody}
+    <button class="card-expand-toggle" onclick="toggleCard('${st.id}')">
+      ${toggleLabel}
+      <span class="note-dot${hasNotes && !isExp?' visible':''}"></span>
+      <span class="chev">▾</span>
+    </button>
+  </div>`;
+}
+
+function renderGroup(groupId) {
+  const grp  = groups.find(g=>g.id===groupId);
+  if (!grp)  { activeTab='overview'; return renderOverview(); }
+  const list = students.filter(s=>s.group===groupId);
+  const isOpen = openGroupNotes.has(groupId);
+  const grpNotes = grp.notes || '';
+  const hasNotes = grpNotes.trim().length > 0;
+
+  // Group notes panel
+  const notesPanel = isOpen ? `
+    <div class="group-notes-panel" id="gnotes-panel-${groupId}">
+      <div class="group-notes-label">📋 Class notes</div>
+      <textarea class="group-notes-ta" id="gnotes-ta-${groupId}" placeholder="Use this space for class notes — reminders, observations, things to prepare, group dynamics…">${escHtml(grpNotes)}</textarea>
+      <div class="group-notes-footer">
+        <span class="group-notes-ts">${grp.notesUpdated ? `Last updated ${fmtDatetime(grp.notesUpdated)}` : ''}</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="group-notes-saved" id="gnotes-saved-${groupId}">Saved ✓</span>
+          <button class="group-notes-save" onclick="saveGroupNotes('${groupId}')">Save notes</button>
+        </div>
+      </div>
+    </div>` : '';
+
+  return `
+    <div class="section-header">
+      <div>
+        <div class="section-title-row">
+          <div class="section-title">${escHtml(grp.name)}</div>
+          <button class="btn-edit-group" title="Rename or delete group" onclick="editGroup('${grp.id}')">✎</button>
+        </div>
+        <div class="section-meta">${list.length} student${list.length!==1?'s':''}</div>
+      </div>
+      <div class="section-actions">
+        <button class="btn-group-notes${hasNotes?' has-notes':''}${isOpen?' open':''}" onclick="toggleGroupNotes('${groupId}')" title="Class notes">
+          📋 Class notes
+          <span class="notes-chevron">▾</span>
+        </button>
+        <button class="btn-primary" onclick="addStudent('${groupId}')">+ Add student</button>
+      </div>
+    </div>
+    ${notesPanel}
+    <div class="cards-grid">
+      ${list.length ? list.map(studentCard).join('') : `<div class="empty-state"><div class="empty-icon">🏺</div><div class="empty-msg">No students in this group yet</div></div>`}
+    </div>`;
+}
+
+function renderOverview() {
+  const all   = students;
+  const packs = all.reduce((s,x)=>s+x.totalPacksPaid,0);
+  const miniRow = st => `<div class="mini-student"><span class="mini-name">${escHtml(st.name)}</span>${badgeHTML(st.classesLeft)}</div>`;
+  const miniCards = groups.map(g => {
+    const gs = all.filter(s=>s.group===g.id);
+    return `<div class="mini-group"><div class="mini-group-title">${escHtml(g.name)}</div>${gs.length?gs.map(miniRow).join(''):`<div class="no-activity">No students</div>`}</div>`;
+  }).join('');
+  return `
+    <div class="section-header" style="margin-bottom:22px">
+      <div><div class="section-title">Overview</div><div class="section-meta">All classes at a glance</div></div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-val">${all.length}</div><div class="stat-lbl">Students</div></div>
+      <div class="stat-card"><div class="stat-val">${packs}</div><div class="stat-lbl">Packs sold</div></div>
+      <div class="stat-card c-rev"><div class="stat-val">$${(packs*PACK_PRICE).toLocaleString()}</div><div class="stat-lbl">Revenue</div></div>
+      <div class="stat-card c-owed"><div class="stat-val">${all.filter(x=>x.classesLeft<0).length}</div><div class="stat-lbl">Owe classes</div></div>
+      <div class="stat-card c-err"><div class="stat-val">${all.filter(x=>x.classesLeft===0).length}</div><div class="stat-lbl">Need payment</div></div>
+      <div class="stat-card c-warn"><div class="stat-val">${all.filter(x=>x.classesLeft===1).length}</div><div class="stat-lbl">Last class</div></div>
+    </div>
+    <div class="mini-groups">${miniCards}</div>`;
+}
+
+function renderAlerts() {
+  const attn   = students.filter(s=>s.classesLeft<=1);
+  const sorted = [...attn].sort((a,b)=>{
+    const p = x=>x.classesLeft<0?0:x.classesLeft===0?1:2;
+    return p(a)-p(b);
+  });
+  updateAlertsCount(sorted.length);
+  if (!sorted.length) return `
+    <div class="section-header" style="margin-bottom:24px"><div><div class="section-title">Alerts</div><div class="section-meta">Students needing attention</div></div></div>
+    <div class="empty-state"><div class="empty-icon">✨</div><div class="empty-msg">All students are doing great!</div></div>`;
+  const row = st => {
+    const s   = getStatus(st.classesLeft);
+    const cls = s==='owed'?'a-owed':s==='empty'?'a-empty':'a-low';
+    return `<div class="alert-row ${cls}"><div class="alert-info-col"><div class="alert-name">${escHtml(st.name)}</div><div class="alert-day">${escHtml(groupName(st.group))}</div></div>${badgeHTML(st.classesLeft)}</div>`;
+  };
+  return `
+    <div class="section-header" style="margin-bottom:24px"><div><div class="section-title">Alerts</div><div class="section-meta">${sorted.length} student${sorted.length!==1?'s':''} need${sorted.length===1?'s':''} attention</div></div></div>
+    <div class="alerts-list">${sorted.map(row).join('')}</div>`;
+}
+
+function updateAlertsCount(n) {
+  const btn = document.getElementById('tab-alerts');
+  if (btn) btn.textContent = n ? `Alerts (${n})` : 'Alerts';
+}
+
+function renderTabs() {
+  const inner = document.getElementById('tabsInner');
+  let h = '';
+  groups.forEach(g => {
+    h += `<button class="tab-btn${activeTab===g.id?' active':''}" data-tab="${g.id}">${escHtml(g.name)}</button>`;
+  });
+  h += `<div class="tab-divider"></div>`;
+  h += `<button class="tab-btn${activeTab==='overview'?' active':''}" data-tab="overview">Overview</button>`;
+  h += `<button class="tab-btn${activeTab==='alerts'?' active':''}" data-tab="alerts" id="tab-alerts">Alerts</button>`;
+  h += `<div class="tab-divider"></div>`;
+  h += `<button class="tab-add-group" onclick="addGroup()">+ New group</button>`;
+  inner.innerHTML = h;
+  inner.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeTab = btn.dataset.tab;
+      renderTabs();
+      renderMain();
+    });
+  });
+  const n = students.filter(s=>s.classesLeft<=1).length;
+  updateAlertsCount(n);
+}
+
+function renderMain() {
+  const app = document.getElementById('app');
+  if      (activeTab==='overview') app.innerHTML = renderOverview();
+  else if (activeTab==='alerts')   app.innerHTML = renderAlerts();
+  else                             app.innerHTML = renderGroup(activeTab);
+  updateAlertsCount(students.filter(s=>s.classesLeft<=1).length);
+}
+
+function render() { renderTabs(); renderMain(); }
+
+/* ═══════════════════════════════════════════════════════════
+   FIREBASE
+   ═══════════════════════════════════════════════════════════ */
+function setConn(state) {
+  const el = document.getElementById('connStatus');
+  const tx = document.getElementById('connText');
+  el.className = 'conn-status ' + state;
+  tx.textContent = state==='connected'?'Connected ✓':state==='error'?'Save failed':'Connecting…';
+}
+async function save() {
+  try { await REF.set({ students, groups }); setConn('connected'); }
+  catch(e) { console.error(e); setConn('error'); }
+}
+REF.onSnapshot(snap => {
+  setConn('connected');
+  const data = snap.exists ? snap.data() : {};
+  students = data.students || [];
+  groups   = (data.groups && data.groups.length) ? data.groups : DEFAULT_GROUPS;
+  if (!activeTab || (!groups.find(g=>g.id===activeTab) && activeTab!=='overview' && activeTab!=='alerts')) {
+    activeTab = groups[0]?.id || 'overview';
+  }
+  render();
+}, err => { console.error(err); setConn('error'); });
+
+/* ═══════════════════════════════════════════════════════════
+   MODAL HELPERS
+   ═══════════════════════════════════════════════════════════ */
+function openModal(html) {
+  const portal = document.getElementById('portal');
+  const div = document.createElement('div');
+  div.className = 'backdrop';
+  div.innerHTML = `<div class="modal">${html}</div>`;
+  div.addEventListener('click', e => { if (e.target===div) closeModal(); });
+  portal.appendChild(div);
+  setTimeout(()=>{ const i=div.querySelector('input[type=text],input[type=number]'); if(i) i.focus(); }, 50);
+  return div;
+}
+function closeModal() {
+  const p = document.getElementById('portal');
+  if (p.lastChild) p.lastChild.remove();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CARD EXPAND / COLLAPSE
+   ═══════════════════════════════════════════════════════════ */
+function toggleCard(studentId) {
+  if (expandedCards.has(studentId)) {
+    expandedCards.delete(studentId);
+  } else {
+    expandedCards.add(studentId);
+  }
+  renderMain();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STUDENT NOTES
+   ═══════════════════════════════════════════════════════════ */
+async function addNote(studentId) {
+  const ta = document.getElementById(`new-note-ta-${studentId}`);
+  if (!ta) return;
+  const text = ta.value.trim();
+  if (!text) { ta.focus(); return; }
+  const st = students.find(s=>s.id===studentId);
+  if (!st) return;
+  if (!st.notes) st.notes = [];
+  st.notes.push({ id:uid(), text, date: Date.now() });
+  ta.value = '';
+  await save();
+  // keep card expanded after save
+  expandedCards.add(studentId);
+}
+
+function startEditNote(studentId, noteId) {
+  const st   = students.find(s=>s.id===studentId);
+  const note = st?.notes?.find(n=>n.id===noteId);
+  if (!note) return;
+  const container = document.getElementById(`note-${noteId}`);
+  if (!container) return;
+  // Replace content with inline editor
+  container.innerHTML = `
+    <textarea class="note-edit-area" id="edit-note-ta-${noteId}">${escHtml(note.text)}</textarea>
+    <div class="note-edit-actions">
+      <button class="nbtn nbtn-cancel2" onclick="cancelEditNote('${studentId}','${noteId}')">Cancel</button>
+      <button class="nbtn nbtn-save" onclick="saveEditNote('${studentId}','${noteId}')">Save</button>
+    </div>`;
+  const ta = document.getElementById(`edit-note-ta-${noteId}`);
+  if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
+
+function cancelEditNote(studentId, noteId) {
+  // Re-render the specific note without saving
+  const st   = students.find(s=>s.id===studentId);
+  const note = st?.notes?.find(n=>n.id===noteId);
+  if (!note) return;
+  const container = document.getElementById(`note-${noteId}`);
+  if (!container) return;
+  container.innerHTML = `
+    <div class="note-header">
+      <span class="note-date">${fmtDatetime(note.date)}</span>
+      <div class="note-btns">
+        <button class="ebtn ebtn-edt" onclick="startEditNote('${studentId}','${noteId}')">✎</button>
+        <button class="ebtn ebtn-rm"  onclick="deleteNote('${studentId}','${noteId}')">✕</button>
+      </div>
+    </div>
+    <div class="note-text" id="note-text-${noteId}">${escHtml(note.text)}</div>`;
+}
+
+async function saveEditNote(studentId, noteId) {
+  const ta = document.getElementById(`edit-note-ta-${noteId}`);
+  if (!ta) return;
+  const text = ta.value.trim();
+  if (!text) { ta.focus(); return; }
+  const st   = students.find(s=>s.id===studentId);
+  const note = st?.notes?.find(n=>n.id===noteId);
+  if (!note) return;
+  note.text = text;
+  note.date = Date.now(); // update timestamp on edit
+  expandedCards.add(studentId);
+  await save();
+}
+
+async function deleteNote(studentId, noteId) {
+  const st = students.find(s=>s.id===studentId);
+  if (!st) return;
+  st.notes = (st.notes||[]).filter(n=>n.id!==noteId);
+  expandedCards.add(studentId);
+  await save();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GROUP NOTES
+   ═══════════════════════════════════════════════════════════ */
+function toggleGroupNotes(groupId) {
+  if (openGroupNotes.has(groupId)) {
+    openGroupNotes.delete(groupId);
+  } else {
+    openGroupNotes.add(groupId);
+  }
+  renderMain();
+}
+
+async function saveGroupNotes(groupId) {
+  const ta = document.getElementById(`gnotes-ta-${groupId}`);
+  if (!ta) return;
+  const grp = groups.find(g=>g.id===groupId);
+  if (!grp) return;
+  grp.notes        = ta.value;
+  grp.notesUpdated = Date.now();
+  await save();
+  // Show "Saved ✓" flash without re-rendering
+  const saved = document.getElementById(`gnotes-saved-${groupId}`);
+  if (saved) {
+    saved.classList.add('show');
+    setTimeout(() => saved.classList.remove('show'), 2000);
+  }
+  // Update the button style to reflect notes exist
+  const btn = document.querySelector(`.btn-group-notes`);
+  if (btn && grp.notes.trim()) btn.classList.add('has-notes');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GROUP MANAGEMENT
+   ═══════════════════════════════════════════════════════════ */
+function addGroup() {
+  openModal(`
+    <div class="modal-title">New group</div>
+    <div class="modal-body">Give your new class group a name — e.g. "Wednesday Morning" or "Saturday Beginners".</div>
+    <div class="field">
+      <label class="field-label">Group name</label>
+      <input id="inp-gname" type="text" class="field-input" placeholder="e.g. Wednesday Evening" autocomplete="off"/>
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn mbtn-confirm" onclick="confirmAddGroup()">Create group</button>
+    </div>`);
+  document.getElementById('inp-gname').addEventListener('keydown', e => { if(e.key==='Enter') confirmAddGroup(); });
+}
+async function confirmAddGroup() {
+  const name = document.getElementById('inp-gname').value.trim();
+  if (!name) { document.getElementById('inp-gname').focus(); return; }
+  const id = uid();
+  groups.push({ id, name });
+  activeTab = id;
+  closeModal();
+  await save();
+}
+
+function editGroup(groupId) {
+  const grp = groups.find(g=>g.id===groupId);
+  if (!grp) return;
+  const n = students.filter(s=>s.group===groupId).length;
+  const warnHtml = n > 0
+    ? `<div class="modal-warn">⚠️ This group has <strong>${n} student${n!==1?'s':''}</strong>. Deleting it will also remove all their data permanently.</div>` : '';
+  openModal(`
+    <div class="modal-title">Edit group</div>
+    <div class="field">
+      <label class="field-label">Group name</label>
+      <input id="inp-grename" type="text" class="field-input" value="${escHtml(grp.name)}" autocomplete="off"/>
+    </div>
+    ${warnHtml}
+    <div class="modal-actions-split">
+      <button class="mbtn mbtn-danger" onclick="confirmDeleteGroup('${groupId}')">Delete group</button>
+      <div style="display:flex;gap:10px">
+        <button class="mbtn mbtn-cancel" onclick="closeModal()">Cancel</button>
+        <button class="mbtn mbtn-confirm" onclick="confirmRenameGroup('${groupId}')">Save name</button>
+      </div>
+    </div>`);
+  document.getElementById('inp-grename').addEventListener('keydown', e => { if(e.key==='Enter') confirmRenameGroup(groupId); });
+}
+async function confirmRenameGroup(groupId) {
+  const name = document.getElementById('inp-grename').value.trim();
+  if (!name) { document.getElementById('inp-grename').focus(); return; }
+  const grp = groups.find(g=>g.id===groupId);
+  if (!grp) return;
+  grp.name = name;
+  closeModal();
+  await save();
+}
+function confirmDeleteGroup(groupId) {
+  const grp = groups.find(g=>g.id===groupId);
+  const n   = students.filter(s=>s.group===groupId).length;
+  closeModal();
+  openModal(`
+    <div class="modal-title">Delete group</div>
+    <div class="modal-body">
+      Are you sure you want to delete <strong>${escHtml(grp.name)}</strong>?
+      ${n>0 ? ` This will also permanently remove <strong>${n} student${n!==1?'s':''}</strong> and all their records.` : ' This group has no students.'}
+      <br/><br/>This cannot be undone.
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn mbtn-danger" onclick="doDeleteGroup('${groupId}')">Yes, delete</button>
+    </div>`);
+}
+async function doDeleteGroup(groupId) {
+  groups   = groups.filter(g=>g.id!==groupId);
+  students = students.filter(s=>s.group!==groupId);
+  openGroupNotes.delete(groupId);
+  if (activeTab===groupId) activeTab = groups[0]?.id || 'overview';
+  closeModal();
+  await save();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ADD STUDENT
+   ═══════════════════════════════════════════════════════════ */
+function addStudent(group) {
+  const grp = groups.find(g=>g.id===group);
+  openModal(`
+    <div class="modal-title">Add student — ${escHtml(grp?.name||group)}</div>
+    <div class="field">
+      <label class="field-label">Student name</label>
+      <input id="inp-name" type="text" class="field-input" placeholder="Full name" autocomplete="off"/>
+    </div>
+    <div class="field">
+      <label class="field-label">Payment status</label>
+      <div class="radio-row">
+        <label class="radio-opt"><input type="radio" name="rpaid" value="unpaid" checked/> Not yet paid</label>
+        <label class="radio-opt"><input type="radio" name="rpaid" value="paid"/> Already paid</label>
+      </div>
+    </div>
+    <div class="field" id="paydate-field" style="display:none">
+      <label class="field-label">Payment date</label>
+      <input id="inp-paydate" type="date" class="field-input" value="${todayStr()}" max="${todayStr()}"/>
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn mbtn-confirm" onclick="confirmAddStudent('${group}')">Add student</button>
+    </div>`);
+  const modal = document.getElementById('portal').lastChild;
+  modal.querySelectorAll('input[name=rpaid]').forEach(r => {
+    r.addEventListener('change', () => {
+      document.getElementById('paydate-field').style.display = r.value==='paid'?'block':'none';
+    });
+  });
+  document.getElementById('inp-name').addEventListener('keydown', e => { if(e.key==='Enter') confirmAddStudent(group); });
+}
+async function confirmAddStudent(group) {
+  const name = document.getElementById('inp-name').value.trim();
+  if (!name) { document.getElementById('inp-name').focus(); return; }
+  const paid    = document.querySelector('input[name=rpaid]:checked').value==='paid';
+  const payDate = paid ? document.getElementById('inp-paydate').value : null;
+  students.push({
+    id: uid(), name, group,
+    classesLeft:    paid ? PACK_SIZE : 0,
+    totalPacksPaid: paid ? 1 : 0,
+    history:        paid ? [{ id:uid(), type:'payment', date:payDate }] : [],
+    notes:          []
+  });
+  closeModal();
+  await save();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MARK CLASS
+   ═══════════════════════════════════════════════════════════ */
+function markClass(id) {
+  const st = students.find(s=>s.id===id);
+  if (!st) return;
+  openModal(`
+    <div class="modal-title">Mark class</div>
+    <div class="modal-body">Recording a class for <strong>${escHtml(st.name)}</strong></div>
+    <div class="field">
+      <label class="field-label">Class date</label>
+      <input id="inp-classdate" type="date" class="field-input" value="${todayStr()}" max="${todayStr()}"/>
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn mbtn-confirm" onclick="previewMarkClass('${id}')">Next</button>
+    </div>`);
+}
+function previewMarkClass(id) {
+  const date  = document.getElementById('inp-classdate').value;
+  const st    = students.find(s=>s.id===id);
+  if (!st) return;
+  const newBal  = st.classesLeft - 1;
+  const balDesc = newBal>=0
+    ? `They will have <strong>${newBal}</strong> class${newBal!==1?'es':''} remaining.`
+    : `They will owe <strong>${Math.abs(newBal)}</strong> unpaid class${Math.abs(newBal)!==1?'es':''}.`;
+  closeModal();
+  openModal(`
+    <div class="modal-title">Confirm class</div>
+    <div class="modal-body">Class on <strong>${fmtDate(date)}</strong> for <strong>${escHtml(st.name)}</strong>.<br/><br/>${balDesc}</div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn mbtn-confirm" onclick="doMarkClass('${id}','${date}')">Confirm</button>
+    </div>`);
+}
+async function doMarkClass(id, date) {
+  const st = students.find(s=>s.id===id);
+  if (!st) return;
+  st.classesLeft -= 1;
+  st.history.push({ id:uid(), type:'class', date });
+  closeModal();
+  await save();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PAYMENT
+   ═══════════════════════════════════════════════════════════ */
+function addPayment(id) {
+  const st = students.find(s=>s.id===id);
+  if (!st) return;
+  const newBal   = st.classesLeft<0 ? PACK_SIZE+st.classesLeft : st.classesLeft+PACK_SIZE;
+  const debtNote = st.classesLeft<0
+    ? `<div class="modal-note">⚠️ ${escHtml(st.name)} currently owes ${Math.abs(st.classesLeft)} class${Math.abs(st.classesLeft)!==1?'es':''}. The new balance will be <strong>${newBal}</strong> class${newBal!==1?'es':''} (${PACK_SIZE} − ${Math.abs(st.classesLeft)} owed).</div>` : '';
+  openModal(`
+    <div class="modal-title">Register payment</div>
+    <div class="modal-body">Recording $${PACK_PRICE} payment for <strong>${escHtml(st.name)}</strong></div>
+    ${debtNote}
+    <div class="field">
+      <label class="field-label">Payment date</label>
+      <input id="inp-paydate2" type="date" class="field-input" value="${todayStr()}" max="${todayStr()}"/>
+    </div>
+    <div class="modal-body" style="margin-top:4px;margin-bottom:0">New balance: <strong>${newBal} class${newBal!==1?'es':''}</strong></div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn mbtn-confirm" onclick="doAddPayment('${id}')">Confirm payment</button>
+    </div>`);
+}
+async function doAddPayment(id) {
+  const date = document.getElementById('inp-paydate2').value;
+  const st   = students.find(s=>s.id===id);
+  if (!st) return;
+  st.classesLeft     = st.classesLeft<0 ? PACK_SIZE+st.classesLeft : st.classesLeft+PACK_SIZE;
+  st.totalPacksPaid += 1;
+  st.history.push({ id:uid(), type:'payment', date });
+  closeModal();
+  await save();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EDIT BALANCE
+   ═══════════════════════════════════════════════════════════ */
+function editBalance(id) {
+  const st = students.find(s=>s.id===id);
+  if (!st) return;
+  openModal(`
+    <div class="modal-title">Edit balance</div>
+    <div class="modal-body">Directly set the class balance for <strong>${escHtml(st.name)}</strong>.<br/>Current balance: <strong>${st.classesLeft}</strong></div>
+    <div class="field">
+      <label class="field-label">New balance (can be negative)</label>
+      <input id="inp-bal" type="number" class="field-input" value="${st.classesLeft}"/>
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn mbtn-confirm" onclick="doEditBalance('${id}')">Save</button>
+    </div>`);
+  document.getElementById('inp-bal').addEventListener('keydown', e => { if(e.key==='Enter') doEditBalance(id); });
+}
+async function doEditBalance(id) {
+  const val = parseInt(document.getElementById('inp-bal').value, 10);
+  if (isNaN(val)) return;
+  const st = students.find(s=>s.id===id);
+  if (!st) return;
+  st.history.push({ id:uid(), type:'correction', date:todayStr(), newBalance:val });
+  st.classesLeft = val;
+  closeModal();
+  await save();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   REMOVE STUDENT
+   ═══════════════════════════════════════════════════════════ */
+function removeStudent(id) {
+  const st = students.find(s=>s.id===id);
+  if (!st) return;
+  openModal(`
+    <div class="modal-title">Remove student</div>
+    <div class="modal-body">Are you sure you want to remove <strong>${escHtml(st.name)}</strong>? All their data will be lost and this cannot be undone.</div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn mbtn-danger" onclick="doRemoveStudent('${id}')">Yes, remove</button>
+    </div>`);
+}
+async function doRemoveStudent(id) {
+  students = students.filter(s=>s.id!==id);
+  expandedCards.delete(id);
+  closeModal();
+  await save();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   REMOVE ENTRY
+   ═══════════════════════════════════════════════════════════ */
+async function removeEntry(studentId, entryId, type) {
+  const st = students.find(s=>s.id===studentId);
+  if (!st) return;
+  st.history = st.history.filter(e=>e.id!==entryId);
+  if      (type==='class')   st.classesLeft += 1;
+  else if (type==='payment') { st.classesLeft -= PACK_SIZE; st.totalPacksPaid = Math.max(0, st.totalPacksPaid-1); }
+  // preserve expand state
+  if (expandedCards.has(studentId)) expandedCards.add(studentId);
+  await save();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EDIT PAYMENT DATE
+   ═══════════════════════════════════════════════════════════ */
+function editPaymentDate(studentId, entryId) {
+  const st    = students.find(s=>s.id===studentId);
+  const entry = st?.history.find(e=>e.id===entryId);
+  if (!entry) return;
+  openModal(`
+    <div class="modal-title">Edit payment date</div>
+    <div class="modal-body">Change the recorded date for this payment by <strong>${escHtml(st.name)}</strong>.</div>
+    <div class="field">
+      <label class="field-label">Payment date</label>
+      <input id="inp-editdate" type="date" class="field-input" value="${entry.date||todayStr()}" max="${todayStr()}"/>
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn mbtn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn mbtn-confirm" onclick="doEditPaymentDate('${studentId}','${entryId}')">Save date</button>
+    </div>`);
+}
+async function doEditPaymentDate(studentId, entryId) {
+  const date  = document.getElementById('inp-editdate').value;
+  const st    = students.find(s=>s.id===studentId);
+  const entry = st?.history.find(e=>e.id===entryId);
+  if (!entry) return;
+  entry.date = date;
+  closeModal();
+  await save();
+}
+</script>
+</body>
+</html>
